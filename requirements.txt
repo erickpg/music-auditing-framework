@@ -1,0 +1,24 @@
+# Core
+pyyaml>=6.0
+numpy>=1.24
+pandas>=2.0
+scipy>=1.11
+scikit-learn>=1.0
+
+# Audio
+torchaudio>=2.0
+soundfile>=0.12
+librosa>=0.10
+audiocraft>=1.0
+
+# ML
+torch>=2.0
+transformers>=4.35
+
+# Watermarking
+wavmark>=0.0.3
+c2pa-python>=0.28
+
+# Plotting
+matplotlib>=3.7
+seaborn>=0.12

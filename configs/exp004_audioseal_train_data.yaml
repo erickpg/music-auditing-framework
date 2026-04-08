@@ -1,0 +1,35 @@
+# exp004_audioseal_train_data.yaml -- Training data for AudioSeal retraining
+# Samples ~200 artists (excluding 50 test catalog artists) from FMA
+# Targeting ~100h of audio for trial fine-tune
+
+experiment:
+  name: exp004_audioseal_train_data
+  description: "Sample FMA training data for AudioSeal retraining (excludes test catalog)"
+
+paths:
+  scratch_base: /scratch/${USER}
+  run_base: /scratch/${USER}/runs
+  export_base: /data/${USER}/capstone_exports
+  hf_cache: /scratch/${USER}/hf_cache
+  torch_cache: /scratch/${USER}/torch_cache
+
+data:
+  sources:
+    - name: fma_full
+      metadata_path: /scratch/${USER}/fma_metadata
+      audio_base_url: https://os.unil.cloud.switch.ch/fma/fma_full.zip
+      audio_local_path: /scratch/${USER}/fma_audio
+  num_artists: 200
+  albums_per_artist: 1
+  min_tracks_per_artist: 5
+  max_tracks_per_artist: 200  # uncapped for training data
+  target_tracks_per_artist: 50  # higher than test set -- we want more audio per artist
+  sample_rate: 16000  # AudioSeal native sample rate
+  channels: 1
+  loudness_normalize: true
+  loudness_target_lufs: -14.0
+  # Exclude the 50 test catalog artists
+  exclude_artists_csv: /scratch/${USER}/runs/2026-03-10_full/manifests/artists_selected.csv
+
+training:
+  seed: 42

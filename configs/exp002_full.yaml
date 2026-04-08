@@ -1,0 +1,139 @@
+# exp002_full.yaml -- Full experiment with ~50 artists
+# Production run with all pipeline stages.
+
+experiment:
+  name: exp002_full
+  description: "Full auditing pipeline with ~50 artists, dual protection bundle"
+
+paths:
+  scratch_base: /scratch/${USER}
+  run_base: /scratch/${USER}/runs
+  export_base: /data/${USER}/capstone_exports
+  hf_cache: /scratch/${USER}/hf_cache
+  torch_cache: /scratch/${USER}/torch_cache
+
+data:
+  sources:
+    - name: fma_full
+      metadata_path: /scratch/${USER}/fma_metadata
+      audio_base_url: https://os.unil.cloud.switch.ch/fma/fma_full.zip
+      audio_local_path: /scratch/${USER}/fma_audio
+  num_artists: 50
+  albums_per_artist: 1
+  min_tracks_per_artist: 5
+  max_tracks_per_artist: 15
+  target_tracks_per_artist: 10
+  sample_rate: 32000
+  channels: 1  # mono
+  loudness_normalize: true
+  loudness_target_lufs: -14.0
+
+c2pa:
+  enabled: true
+  sign_key_path: /scratch/${USER}/secrets/c2pa_sign.pem
+  claim_generator: "capstone-auditor/0.1"
+  survival_matrix:
+    pipelines:
+      - {name: wav_to_mp3_128, codec: mp3, bitrate: 128}
+      - {name: wav_to_mp3_320, codec: mp3, bitrate: 320}
+      - {name: mp3_to_aac_128, codec: aac, bitrate: 128}
+      - {name: mp3_to_mp3_reencode, codec: mp3, bitrate: 128}
+      - {name: strip_metadata, tool: ffmpeg, args: "-map_metadata -1"}
+
+watermark:
+  enabled: true
+  model_path: /scratch/${USER}/models/watermark_encoder.pt
+  detector_path: /scratch/${USER}/models/watermark_detector.pt
+  payload_bits: 32
+  embedding_strength: 1.0
+  adaptive_strength: true
+  adaptive_energy_threshold_db: -40
+  adaptive_strength_low_energy: 0.5
+
+chunking:
+  segment_length_s: 30
+  overlap_s: 5
+  min_segment_length_s: 10
+
+imperceptibility:
+  metrics: [snr, visqol]
+  sample_size: 500  # random subset for evaluation
+  report_percentiles: [5, 25, 50, 75, 95]
+
+tokenizer_survival:
+  enabled: true
+  codec: encodec
+  codec_model: facebook/encodec_32khz
+  sample_size: 200
+
+training:
+  model_name: facebook/musicgen-small
+  contamination_rate: 0.05
+  per_artist_cap: 0.03
+  batch_size: 4
+  gradient_accumulation_steps: 8
+  learning_rate: 1.0e-4
+  num_epochs: 100
+  warmup_steps: 200
+  checkpoint_every_steps: 250
+  max_grad_norm: 1.0
+  seed: 42
+  resume_from_checkpoint: null  # set to checkpoint path for resumption
+
+generation:
+  num_outputs_per_prompt: 20
+  max_duration_s: 30
+  temperature: 1.0
+  top_k: 250
+  top_p: 0.95
+  prompts_file: null  # auto-generated from tag bundles
+  prompt_strategy: tag_bundle  # mood | tag_bundle | direct
+  num_prompts: 100
+  seeds: [42, 123, 456, 789, 1024]
+
+detection:
+  threshold: 0.5
+  integrity_check: true
+  batch_size: 32
+
+transforms:
+  library:
+    - name: mp3_compression
+      severities:
+        - {bitrate: 320}
+        - {bitrate: 192}
+        - {bitrate: 128}
+        - {bitrate: 64}
+    - name: resample
+      severities:
+        - {target_sr: 22050}
+        - {target_sr: 16000}
+        - {target_sr: 8000}
+    - name: gaussian_noise
+      severities:
+        - {snr_db: 40}
+        - {snr_db: 30}
+        - {snr_db: 20}
+    - name: time_stretch
+      severities:
+        - {rate: 0.95}
+        - {rate: 0.9}
+        - {rate: 1.1}
+    - name: pitch_shift
+      severities:
+        - {semitones: 1}
+        - {semitones: 2}
+        - {semitones: -1}
+    - name: low_pass_filter
+      severities:
+        - {cutoff_hz: 8000}
+        - {cutoff_hz: 4000}
+
+inference:
+  alpha: 0.05
+  fdr_method: benjamini_hochberg
+  min_effect_size: 0.2
+  false_positive_control:
+    clean_real_audio: true
+    clean_model_outputs: true
+    cross_model_negatives: false  # enable if HeartMuLa/DiffRhythm available

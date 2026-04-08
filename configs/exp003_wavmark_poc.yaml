@@ -1,0 +1,76 @@
+# exp003_wavmark_poc.yaml -- WavMark proof-of-concept
+# Fast end-to-end test: does ANY watermark survive MusicGen fine-tuning?
+# NOT the final watermark -- WavMark has only 16 payload bits and runs at 16kHz.
+# Purpose: validate pipeline before investing ~3-5 days training custom INN model.
+
+experiment:
+  name: exp003_wavmark_poc
+  description: "WavMark POC: end-to-end watermark survival through MusicGen pipeline"
+
+paths:
+  scratch_base: /scratch/${USER}
+  run_base: /scratch/${USER}/runs
+  export_base: /data/${USER}/capstone_exports
+  hf_cache: /scratch/${USER}/hf_cache
+  torch_cache: /scratch/${USER}/torch_cache
+
+data:
+  # Reuse the 2026-03-10_full run's masters
+  source_run_id: "2026-03-10_full"
+  source_masters_dir: /scratch/${USER}/runs/2026-03-10_full/masters_clean
+  sample_rate: 32000
+  channels: 1
+
+watermark:
+  enabled: true
+  method: wavmark  # off-the-shelf WavMark (pip install wavmark)
+  # WavMark operates at 16kHz internally -- audio is resampled down and back up
+  wavmark_sample_rate: 16000
+  payload_bits: 16  # WavMark only has 16 usable bits (16/32 reserved for pattern)
+  # Simplified payload schema for POC (fits in 16 bits):
+  #   artist_id: 8 bits (0-255, enough for 50 artists)
+  #   album_id:  4 bits (0-15, enough for 1-2 albums per artist)
+  #   crc4:      4 bits (integrity check)
+  payload_schema:
+    artist_id_bits: 8
+    album_id_bits: 4
+    crc_bits: 4
+
+tokenizer_survival:
+  enabled: true
+  codec: encodec
+  codec_model: facebook/encodec_32khz
+  sample_size: 50  # quick check on subset
+
+chunking:
+  segment_length_s: 30
+  overlap_s: 5
+  min_segment_length_s: 10
+
+training:
+  model_name: facebook/musicgen-small  # small for POC speed
+  contamination_rate: 0.10  # 10% watermarked for stronger signal in POC
+  per_artist_cap: 0.05
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 5.0e-5
+  num_epochs: 10  # fewer epochs for POC
+  warmup_steps: 100
+  checkpoint_every_steps: 250
+  max_grad_norm: 1.0
+  seed: 42
+  resume_from_checkpoint: null
+
+generation:
+  num_outputs_per_prompt: 5  # fewer for POC
+  max_duration_s: 30
+  temperature: 1.0
+  top_k: 250
+  top_p: 0.95
+  prompt_strategy: tag_bundle
+  num_prompts: 20  # fewer for POC
+  seeds: [42, 123, 456]
+
+detection:
+  threshold: 0.5
+  batch_size: 32

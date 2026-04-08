@@ -1,0 +1,82 @@
+# exp001_minimal.yaml -- Minimal test run (few artists, small subset)
+# Use for validating pipeline end-to-end before full run.
+
+experiment:
+  name: exp001_minimal
+  description: "Minimal pipeline validation with 5 artists"
+
+paths:
+  scratch_base: /scratch/${USER}
+  run_base: /scratch/${USER}/runs
+  export_base: /data/${USER}/capstone_exports
+  hf_cache: /scratch/${USER}/hf_cache
+  torch_cache: /scratch/${USER}/torch_cache
+
+data:
+  sources:
+    - name: fma_full
+      metadata_path: /scratch/${USER}/fma_metadata
+      audio_base_url: https://os.unil.cloud.switch.ch/fma/fma_full.zip
+      audio_local_path: /scratch/${USER}/fma_audio
+  num_artists: 5
+  albums_per_artist: 1
+  min_tracks_per_artist: 10
+  max_tracks_per_artist: 100
+  sample_rate: 32000
+  channels: 1  # mono
+  loudness_normalize: false
+  loudness_target_lufs: -14.0
+
+c2pa:
+  enabled: true
+  # Path to C2PA signing key (never commit this)
+  sign_key_path: /scratch/${USER}/secrets/c2pa_sign.pem
+  claim_generator: "capstone-auditor/0.1"
+
+watermark:
+  enabled: true
+  # Placeholder -- fill in with actual watermark model path
+  model_path: /scratch/${USER}/models/watermark_encoder.pt
+  payload_bits: 32
+  embedding_strength: 1.0
+  adaptive_strength: false
+
+chunking:
+  segment_length_s: 10
+  overlap_s: 0
+  min_segment_length_s: 5
+
+training:
+  model_name: facebook/musicgen-small
+  contamination_rate: 0.10
+  per_artist_cap: 0.05
+  batch_size: 4
+  learning_rate: 1.0e-4
+  num_epochs: 5
+  checkpoint_every_steps: 100
+  seed: 42
+
+generation:
+  num_outputs_per_prompt: 5
+  max_duration_s: 10
+  temperature: 1.0
+  top_k: 250
+  prompts_file: null  # auto-generated from tags if null
+
+detection:
+  threshold: 0.5
+  integrity_check: true
+
+transforms:
+  library:
+    - name: mp3_compression
+      params: {bitrate: 128}
+    - name: resample
+      params: {target_sr: 16000}
+    - name: gaussian_noise
+      params: {snr_db: 30}
+
+inference:
+  alpha: 0.05
+  fdr_method: benjamini_hochberg
+  min_effect_size: 0.2

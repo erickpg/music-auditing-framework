@@ -1,0 +1,127 @@
+# exp005_memorization.yaml -- Token-level memorization detection + per-artist vulnerability
+# Approach 1: Search for n-gram matches in EnCodec token space between catalog and generated outputs
+# Approach 2: Per-artist replication risk scoring via CLAP similarity, FAD, and musicological features
+
+experiment:
+  name: exp005_memorization
+  description: "Token memorization detection and per-artist vulnerability assessment"
+
+paths:
+  scratch_base: /scratch/${USER}
+  run_base: /scratch/${USER}/runs
+  export_base: /data/${USER}/capstone_exports
+  hf_cache: /scratch/${USER}/hf_cache
+  torch_cache: /scratch/${USER}/torch_cache
+
+data:
+  sources:
+    - name: fma_full
+      metadata_path: /scratch/${USER}/fma_metadata
+      audio_base_url: https://os.unil.cloud.switch.ch/fma/fma_full.zip
+      audio_local_path: /scratch/${USER}/fma_audio
+  num_artists: 50
+  albums_per_artist: 1
+  min_tracks_per_artist: 5
+  max_tracks_per_artist: 15
+  target_tracks_per_artist: 10
+  sample_rate: 32000
+  channels: 1
+  loudness_normalize: true
+  loudness_target_lufs: -14.0
+
+chunking:
+  segment_length_s: 30
+  overlap_s: 5
+  min_segment_length_s: 10
+
+# --- Tokenization (shared by both approaches) ---
+tokenization:
+  codec_model: facebook/encodec_32khz
+  codec_sr: 32000
+  # EnCodec 32kHz: 4 codebooks, 2048 vocab, 50 Hz frame rate
+  num_codebooks: 4
+  vocab_size: 2048
+  frame_rate: 50  # tokens per second per codebook
+
+# --- Approach 1: Token-level memorization detection ---
+memorization:
+  # N-gram search parameters
+  ngram_sizes: [3, 4, 5, 6, 8]
+  # Which codebooks to search (0-indexed). null = all
+  codebooks: null
+  # Minimum n-gram match length to report
+  min_match_length: 3
+  # Number of bootstrap samples for null distribution
+  null_bootstrap_samples: 1000
+  # Random seed for null distribution generation
+  null_seed: 42
+  # Statistical test
+  alpha: 0.05
+  fdr_method: benjamini_hochberg
+
+# --- Approach 2: Per-artist vulnerability assessment ---
+vulnerability:
+  # CLAP embedding similarity
+  clap:
+    model_name: laion/larger_clap_music_and_speech
+    batch_size: 16
+  # Frechet Audio Distance
+  fad:
+    embedding_model: vggish  # or clap
+    min_samples_per_group: 10
+  # Musicological features (librosa)
+  musicological:
+    features:
+      - spectral_centroid
+      - spectral_bandwidth
+      - spectral_rolloff
+      - mfcc
+      - chroma
+      - tempo
+      - rms_energy
+    mfcc_n: 13
+    hop_length: 512
+    n_fft: 2048
+  # Composite score weights
+  score_weights:
+    clap_similarity: 0.4
+    fad_score: 0.3
+    musicological_similarity: 0.3
+
+# --- Fine-tuning (Full fine-tuning, MusicGen-small) ---
+training:
+  model_name: facebook/musicgen-small
+  contamination_rate: 0.05
+  per_artist_cap: 0.03
+  batch_size: 4
+  gradient_accumulation_steps: 8
+  learning_rate: 1.0e-4
+  weight_decay: 1.0e-5
+  fp16: true
+  num_epochs: 100
+  warmup_steps: 16
+  checkpoint_every_steps: 250
+  max_grad_norm: 0.5
+  seed: 42
+  resume_from_checkpoint: null
+
+# --- Generation ---
+generation:
+  num_outputs_per_prompt: 20
+  max_duration_s: 30
+  temperatures: [1.0]
+  top_k: 250
+  top_p: 0.95
+  prompts_file: null
+  prompt_strategy: tag_bundle
+  num_prompts: 100
+  seeds: [42, 123, 456]
+  # Per-artist generation for vulnerability assessment
+  per_artist_prompts: 3
+  per_artist_seeds: [42, 123, 456]
+
+# --- Statistical inference ---
+inference:
+  alpha: 0.05
+  fdr_method: benjamini_hochberg
+  min_effect_size: 0.2

@@ -1,0 +1,47 @@
+# Audio files
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.aac
+
+# Model weights & checkpoints
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.ckpt
+
+# Data artifacts
+*.npy
+*.npz
+*.parquet
+*.h5
+*.hdf5
+
+# Run outputs
+/runs/
+/data/
+/results/
+/figures/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+*.pem
+*.key
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
